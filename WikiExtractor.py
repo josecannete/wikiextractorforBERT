@@ -172,6 +172,23 @@ options = SimpleNamespace(
     escape_doc = False,
 
     ##
+    ## No title
+    no_title = False,
+
+    ##
+    ## No doc header/footer
+    no_doc = False,
+
+    ##
+    ## Point separated
+    point_separated = False,
+
+    ##
+    ## Blank-line between documents
+
+    blank_line_between_docs = False,
+
+    ##
     # Print the wikipedia article revision
     print_revision = False,
 
@@ -586,19 +603,25 @@ class Extractor(object):
             footer = "\n</doc>\n"
             if out == sys.stdout:   # option -a or -o -
                 header = header.encode('utf-8')
-            out.write(header)
+            if not options.no_doc:
+                out.write(header)
             for line in text:
                 if out == sys.stdout:   # option -a or -o -
                     line = line.encode('utf-8')
                 out.write(line)
                 out.write('\n')
-            out.write(footer)
+            if not options.no_doc:    
+                out.write(footer)
+            if options.blank_line_between_docs:
+                out.write('\n')
 
     def extract(self, out):
         """
         :param out: a memory file.
         """
         logging.info('%s\t%s', self.id, self.title)
+
+
 
         # Separate header from text with a newline.
         if options.toHTML:
@@ -647,7 +670,18 @@ class Extractor(object):
         text = self.wiki2text(text)
         text = compact(self.clean(text))
         # from zwChan
-        text = [title_str] + text
+        if not options.no_title:
+            text = [title_str] + text
+
+        if options.point_separated:
+            #text_lines = []
+            #from functools import reduce
+            #for line in text:
+            #    text_lines += line.split('.')
+            #text = text_lines
+            text = list(map(lambda t: t.replace('\n', '').replace('. ', '.\n').strip(), text))
+            text = list(filter(lambda t: t is not '', text))
+            text = list(filter(lambda t: t is not '\n', text))
 
         if sum(len(line) for line in text) < options.min_text_length:
             return
@@ -3127,6 +3161,16 @@ def main():
 
 
     groupP = parser.add_argument_group('Processing')
+    groupP.add_argument("--for-bert", action="store_true",
+                            help="ready for bert pre-training")
+    groupP.add_argument("--point-separated", action="store_true",
+                            help="every line is separated")
+    groupP.add_argument("--blank-line-between-docs", action="store_true",
+                            help="every doc is separated by blank line")
+    groupP.add_argument("--no-doc", action="store_true",
+                            help="the output won't have the lines <doc> and </doc>")
+    groupP.add_argument("--no-title", action="store_true",
+                            help="the output won't have the titles of the articles")
     groupP.add_argument("--html", action="store_true",
                         help="produce HTML output, subsumes --links")
     groupP.add_argument("-l", "--links", action="store_true",
@@ -3187,6 +3231,16 @@ def main():
     options.expand_templates = args.no_templates
     options.filter_disambig_pages = args.filter_disambig_pages
     options.keep_tables = args.keep_tables
+    options.no_doc = args.no_doc
+    options.no_title = args.no_title
+    options.point_separated = args.point_separated
+    options.blank_line_between_docs = args.blank_line_between_docs
+
+    if args.for_bert:
+        options.no_doc = True
+        options.no_title = True
+        options.point_separated = True
+        options.blank_line_between_docs = True
 
     try:
         power = 'kmg'.find(args.bytes[-1].lower()) + 1
